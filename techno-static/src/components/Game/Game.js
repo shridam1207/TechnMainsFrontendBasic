@@ -11,7 +11,7 @@ import logo from '../../Techno-logo_2_20.png';
 import Popover from 'react-bootstrap/Popover';
 import OverlayTrigger from 'react-bootstrap/OverlayTrigger';
 
-const ENDPOINT = 'localhost:5000';
+const ENDPOINT = 'http://cserver.techniche.org';
 
 // const roomId = ({ location }) => {
 // 	const [name, setName] = useState('');
