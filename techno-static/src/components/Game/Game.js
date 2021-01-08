@@ -16,7 +16,7 @@ const ENDPOINT = 'localhost:5000';
 // const roomId = ({ location }) => {
 // 	const [name, setName] = useState('');
 // 	const [room, setRoom] = useState('');
-	
+
 // 	useEffect(()=>{
 // 		const { name,room }=queryString(location.search);
 // 		socket=io(ENDPOINT);
@@ -57,9 +57,11 @@ class Board extends React.Component {
 			blueTurn: false,
 			redScore: 0,
 			blueScore: 0,
-			name:"",
-			room:"",
 			clickMask: false,
+			redTime: 60*20,
+			blueTime: 60*20,
+			room: this.props.location.state.roomid,
+			name: this.props.location.state.name,
 		};
 		this.socket = io(ENDPOINT);
 	}
@@ -67,15 +69,31 @@ class Board extends React.Component {
 	componentDidMount(){
 		//const name = this.props.location.state.name;
 		const room = this.props.location.state.roomid;
-
-		this.socket.emit('join',room);
+		const name = this.props.location.state.name;
+		console.log("roomid is: " + room);
+		console.log("player is: " + name);
+		this.socket.emit('join',{data: room, rollno: name});
 
 		this.socket.emit('disconnect',function(){
-			console.log("bye bye!!");				
+			console.log("bye bye!!");
 		});
 
-		this.socket.on("roomid", ({ roomid, isPlayerBlue }) => {
-			this.setState({ isPlayerBlue: isPlayerBlue});	
+		this.socket.on("roomid", ({ roomid, isPlayerBlue, roomState }) => {
+			this.setState({
+				isPlayerBlue: isPlayerBlue,
+				squares: roomState.squares,
+				pieces: roomState.pieces,
+				blueScore: roomState.blueScore,
+				redScore: roomState.redScore,
+				isGameOn: roomState.isGameOn,
+				blueTurn: roomState.blueTurn,
+				isSetup: roomState.isSetup,
+				numBlue: roomState.numBlue,
+				numRed:  roomState.numRed,
+				initialRedPiece: roomState.initialRedPiece,
+				initialBluePiece: roomState.initialBluePiece,
+			});
+			console.log("Roomid given");
 		});
 
 		this.socket.on("move", (data) => {
@@ -106,12 +124,45 @@ class Board extends React.Component {
 			this.setState({
 				squares: data.squares,
 				pieces: data.pieces,
+				initialBluePiece: data.initialBluePiece,
+				initialRedPiece: data.initialRedPiece,
+				numRed: data.numRed,
+				numBlue: data.numBlue,
 				pieceToAdd: null,
 				pieceToMove: null,
 				lastClicked: null,
 				isListening: false,
 			});
 		});
+
+		this.socket.on("timer", (timeinterval) => {
+            this.setState({
+                blueTime:timeinterval.blue,
+                redTime:timeinterval.red,
+            });
+        });
+
+        this.socket.on("Ended", (data) => {
+        	console.log(this.isPlayerBlue);
+        	console.log(data);
+        	if(this.state.isPlayerBlue==data) alert("Congratulations, You won!!");
+            else alert("you lost :( better luck next time");
+
+            this.setState({
+			   isGameOn: false,
+			   ended: 1,
+            });
+
+            if(this.state.blueScore<180 && this.state.redScore<180){
+            	if(data===0) {
+            		let redScore = this.state.redScore;
+            		this.setState({redScore: redScore+180});
+            	}else{
+            		let blueScore = this.state.blueScore;
+            		this.setState({blueScore: blueScore+180});
+            	}
+            }
+        });
 	}
 
 
@@ -120,16 +171,50 @@ class Board extends React.Component {
 		let square = this.state.squares[10*i+j];
 		let pieces = this.state.pieces;
 		let disp = null;
-		if(square.hasPiece === true) disp = pieces[square.pieceid.isBlue][square.pieceid.index].rank;
+		if(square.hasPiece === true && pieces[square.pieceid.isBlue][square.pieceid.index].rank===-1) disp = 'B';
+		else if(square.hasPiece === true && pieces[square.pieceid.isBlue][square.pieceid.index].rank===0) disp = 'F';
+		else if(square.hasPiece === true) disp = pieces[square.pieceid.isBlue][square.pieceid.index].rank;
 
 		let className;
 		if(square.isLake) className="squarelake";
 		else if(square.isHighlighted) className="squarehighlighted";
 		else if(square.hasPiece===false) className="squarefree";
-		else if(square.pieceid.isBlue) className="squareblueoccupied";
-		else className="squareredoccupied";
-
-		if(disp!==null && square.pieceid.isBlue!=this.state.isPlayerBlue) disp=null;
+		else if(square.pieceid.isBlue){
+			 if(disp===1) className="squareblueoccupied spyB";
+		 else if(disp===2) className="squareblueoccupied scoutB";
+		 else if(disp===3) className="squareblueoccupied minerB";
+         else if(disp===4) className="squareblueoccupied sergeantB";
+         else if(disp===5) className="squareblueoccupied lieutenantB";
+         else if(disp===6) className="squareblueoccupied captainB";
+         else if(disp===7) className="squareblueoccupied majorB";
+         else if(disp===8) className="squareblueoccupied colonelB";
+         else if(disp===9) className="squareblueoccupied generalB";
+         else if(disp===10) className="squareblueoccupied marshalB";
+         else if(disp==='F') className="squareblueoccupied flagB";
+         else className="squareblueoccupied bombB";
+		}
+		else {
+			if(disp===1) className="squareredoccupied spyR";
+		 else if(disp===2) className="squareredoccupied scoutR";
+		 else if(disp===3) className="squareredoccupied minerR";
+         else if(disp===4) className="squareredoccupied sergeantR";
+         else if(disp===5) className="squareredoccupied lieutenantR";
+         else if(disp===6) className="squareredoccupied captainR";
+         else if(disp===7) className="squareredoccupied majorR";
+         else if(disp===8) className="squareredoccupied colonelR";
+         else if(disp===9) className="squareredoccupied generalR";
+         else if(disp===10) className="squareredoccupied marshalR";
+         else if(disp==='F') className="squareredoccupied flagR";
+         else className="squareredoccupied bombR";
+		}
+		if(disp!==null && square.pieceid.isBlue!=this.state.isPlayerBlue){
+			if( square.pieceid.isBlue){
+           className="squareblueoccupied hideB";
+		    }
+		    else {
+		   className="squareredoccupied hideR";
+           }
+		 }
 
 		if(square.isPurple) className="squarehighlightattack";
 
@@ -142,16 +227,15 @@ class Board extends React.Component {
 
 		return(
 			<Square
-				className={className + " " + id} 
+				className={className + " " + id}
 				onClick={()=>this.handleClick(i,j)}
-				value={disp}
 			/>
 			);
 
 	}
 
 	renderRow(i) {
-		
+
 		if(this.state.isPlayerBlue){
 			return(
 				<div className="board-row">
@@ -187,7 +271,7 @@ class Board extends React.Component {
 	}
 
 	renderPanelSquare(i, j){
-		
+
 		let disp = null;
 		let p=j-1;
 		let className;
@@ -205,11 +289,13 @@ class Board extends React.Component {
          else if(p===10) className="squareredoccupied marshalR";
          else if(p===0) className="squareredoccupied flagR";
          else className="squareredoccupied bombR";
-         className="squareredoccupied";
          disp=j-1;
-		} 
 
-		else{ 
+         if(j==0) disp = 'B';
+         if(j==1) disp = 'F';
+		}
+
+		else{
 		 if(p===1) className="squareblueoccupied spyB";
 		 else if(p===2) className="squareblueoccupied scoutB";
 		 else if(p===3) className="squareblueoccupied minerB";
@@ -217,19 +303,20 @@ class Board extends React.Component {
          else if(p===5) className="squareblueoccupied lieutenantB";
          else if(p===6) className="squareblueoccupied captainB";
          else if(p===7) className="squareblueoccupied majorB";
-         else if(p===8) className="squareblueoccupied colonelB"; 
+         else if(p===8) className="squareblueoccupied colonelB";
          else if(p===9) className="squareblueoccupied generalB";
          else if(p===10) className="squareblueoccupied marshalB";
          else if(p===0) className="squareblueoccupied flagB";
          else className="squareblueoccupied bombB";
-         className="squareblueoccupied";
          disp=j-1;
-		} 
+
+         if(j==0) disp = 'B';
+         if(j==1) disp = 'F';
+		}
 			return (
 				<Square
 					className={className}
 					onClick={() => this.handlePanelClick(i, j)}
-					value={disp}
 				/>
 			);
 		} else if(i===1){
@@ -272,7 +359,7 @@ class Board extends React.Component {
 	handlePanelClick(i, j){
 		if(this.state.isSetup && !this.state.clickMask){
 			let maxPieces = [6, 1, 1, 7, 5, 5, 4, 4, 3, 2, 1, 1];
-		
+
 			if(!this.state.isListening){
 				let curr= 0
 				let k = 0;
@@ -280,11 +367,11 @@ class Board extends React.Component {
 					curr += maxPieces[k];
 					k++;
 				}
-	
+
 				while(curr<40 && this.state.pieces[i/2][curr].pos !== null){
 					curr++;
 				}
-				
+
 				if(curr<40 && this.state.pieces[i/2][curr].rank +1 !== j){
 					return;
 				}
@@ -292,7 +379,7 @@ class Board extends React.Component {
 				if(curr >= 40){
 					return;
 				}
-	
+
 				this.setState({
 					isListening: true,
 					pieceToAdd: [i/2, curr]
@@ -317,7 +404,7 @@ class Board extends React.Component {
 		let redPieces = this.state.initialRedPiece.slice();
 		let bluePieces = this.state.initialBluePiece.slice();
 
-		{	
+		{
 			if(newPieces[pieceColor][pieceIndex].pos === null){
 				if(pieceColor === 1 && 10*i + j <= 39){
 					newSquares[10*i + j].pieceid = {
@@ -342,6 +429,10 @@ class Board extends React.Component {
 				let toSend = {
 					squares: newSquares,
 					pieces: newPieces,
+					initialBluePiece: bluePieces,
+					initialRedPiece: redPieces,
+					numRed: redCount,
+					numBlue: blueCount,
 				};
 
 				this.socket.emit("newPieceAdd", toSend);
@@ -400,6 +491,10 @@ class Board extends React.Component {
 			let toSend = {
 				squares: newSquares,
 				pieces: newPieces,
+				initialBluePiece: this.state.initialBluePiece,
+				initialRedPiece: this.state.initialRedPiece,
+				numRed: this.state.numRed,
+				numBlue: this.state.numBlue,
 			};
 
 			this.socket.emit("newPieceAdd", toSend);
@@ -453,7 +548,7 @@ class Board extends React.Component {
 
 	}
 
-	
+
 	firstClick(i, j) {
 		if(this.state.squares[10*i + j].hasPiece===false || this.state.squares[10*i + j].isLake===true) {
 			return;
@@ -537,7 +632,7 @@ class Board extends React.Component {
 				newPieces[nextSquare.pieceid.isBlue][nextSquare.pieceid.index].isAlive = false;
 
 				newPieces[nextSquare.pieceid.isBlue][nextSquare.pieceid.index].pos = null;
-				
+
 				newSquares[10*i+j].pieceid = newSquares[this.state.lastClicked].pieceid;
 				newPieces[newSquares[10*i+j].pieceid.isBlue][newSquares[10*i+j].pieceid.index].pos = 10*i + j;
 				newSquares[10*i+j].hasPiece = true;
@@ -583,7 +678,7 @@ class Board extends React.Component {
 					let nextPieceId = nextSquare.pieceid;
 					newPieces[nextSquare.pieceid.isBlue][nextSquare.pieceid.index].isAlive = false;
 					newPieces[nextSquare.pieceid.isBlue][nextSquare.pieceid.index].pos = null;
-					
+
 					newSquares[10*i+j].pieceid = newSquares[this.state.lastClicked].pieceid;
 					newPieces[newSquares[10*i+j].pieceid.isBlue][newSquares[10*i+j].pieceid.index].pos = 10*i + j;
 					newSquares[10*i+j].hasPiece = true;
@@ -638,7 +733,7 @@ class Board extends React.Component {
 									} else {
 										redScore += nextRankBlast
 									}
-								}				
+								}
 							}
 						}
 					}
@@ -666,6 +761,8 @@ class Board extends React.Component {
 			redScore: redScore,
 			squares: newSquares,
 			pieces: newPieces,
+			room: this.state.room,
+			name: this.state.name,
 		};
 
 		this.socket.emit("moved", toSend);
@@ -680,6 +777,10 @@ class Board extends React.Component {
 			redScore: redScore,
 			blueScore: blueScore,
 		});
+
+		if(this.flagCaptured()){
+			this.socket.emit("win", this.state.isPlayerBlue?1:0);
+		}
 		return;
 	}
 
@@ -706,23 +807,45 @@ class Board extends React.Component {
 				this.secondClick(i, j);
 				return;
 			}
-			
+
 		}
 	}
-	
+
 	render() {
 
 		let Panel = null;
 		let readyButton = null;
+		let resignButton = null;
+		let timerPanelRed = null;
+		let timerPanelBlue = null;
+		let turnDetails = null;
 
 		if(this.state.isSetup){
 			if(this.state.isPlayerBlue) Panel = <div>{this.renderPanelRow(2)}{this.renderPanelRow(3)}</div>;
 			else Panel = <div>{this.renderPanelRow(0)}{this.renderPanelRow(1)}</div>;
 		}
 
+		if(this.state.isSetup) readyButton = <button className="btn btn-success" onClick={()=>this.readyClick()}>Ready</button>;
+
+		if(!this.state.isSetup){
+			timerPanelRed = <p className = "bg-danger" >Red is left with <p>{this.state.redTime}</p></p>;
+			timerPanelBlue = <p className = "bg-primary">Blue is left with <p>{this.state.blueTime}</p></p>;
+		}
+
+		if(this.state.isGameOn) resignButton = <button className="btn btn-danger" onClick={()=>this.resignClick()}>Resign</button>
+
 		if(this.state.isSetup){
-			if(this.state.isPlayerBlue) readyButton = <button onClick={()=>this.blueReadyButton()}>Ready</button>;
-			else readyButton = <button onClick={()=>this.redReadyButton()}>Ready</button>;
+			if(!this.state.clickMask){
+				turnDetails = <h3>Setup Your Board</h3>
+			} else {
+				turnDetails = <h3>Waiting For Opponent to Setup</h3>
+			}
+		} else {
+			if(this.state.isPlayerBlue === this.state.blueTurn){
+				turnDetails = <h3>Your Turn</h3>
+			} else {
+				turnDetails = <h3>Opponent's Turn</h3>
+			}
 		}
 
 		if(this.state.isPlayerBlue){
@@ -735,15 +858,36 @@ class Board extends React.Component {
 							<Navbar.Brand className='mx-auto' href="#"><h1>Ultimate Stratego</h1></Navbar.Brand>
 							<span className='help'><Help/></span>
   						</Navbar>
-						
-						
+
+
 					</span>
-					
+					<div className="show-content bg-success text-white">
+						<div className="row justify-content-between text-center">
+							<div className="col-4"><h4>Opponent's Score: {this.state.redScore}</h4></div> <div className="col-4">{turnDetails}</div> <div className="col-2 col-md-4"><h4>Your Score: {this.state.blueScore}</h4></div>
+						</div>
+						<div className="row justify-content-between">
+							<div className="col-2"></div>
+							<div className="col-2">
+								{timerPanelRed}
+							</div>
+							<div className="col-2">
+								{timerPanelBlue}
+							</div>
+							<div className="col-2"></div>
+						</div>
+						<div className="text-center row justify-content-between">
+							<div className="col-4">
+								<h5>You joined room {this.state.room}</h5>
+							</div>
+							<div className="col-4">
+								<h5>You are Blue</h5>
+							</div>
+						</div>
+					</div>
 					<div className='table'>
-					
-					<span className=''><br></br><h3>Your Opponent's Score: {this.state.redScore}</h3><br></br></span>
+
 					<span className="">
-						
+
 
 						{this.renderRow(11)}
 						{this.renderRow(10)}
@@ -762,9 +906,15 @@ class Board extends React.Component {
 						<br></br>
 						{Panel}
 						<br></br>
-						{readyButton}
+						<div className="row">
+							<div className="col-2">{readyButton}</div>
+							<div className="col-8"></div>
+							<div className="col-2">{resignButton}</div>
+						</div>
+
+
 					</span>
-					<span className=''><h3>Your Score: {this.state.blueScore}</h3></span>
+
 					</div>
 					<span className='footer'>Copyright (C) Technothlon 2019-20</span>
 				</div>
@@ -779,11 +929,33 @@ class Board extends React.Component {
     						<Navbar.Brand className='mx-auto' href="#"><h1>Ultimate Stratego</h1></Navbar.Brand>
 							<span className='help'><Help/></span>
   						</Navbar>
-						
+
 					</span>
-					
+					<div className="show-content bg-success text-white">
+						<div className="row justify-content-between text-center">
+							<div className="col-4"><h4>Opponent's Score: {this.state.blueScore}</h4></div> <div className="col-4">{turnDetails}</div> <div className="col-2 col-md-4"><h4>Your Score: {this.state.redScore}</h4></div>
+						</div>
+
+						<div className="row justify-content-between">
+							<div className="col-2"></div>
+							<div className="col-2">
+								{timerPanelBlue}
+							</div>
+							<div className="col-2">
+								{timerPanelRed}
+							</div>
+							<div className="col-2"></div>
+						</div>
+						<div className="text-center row justify-content-between">
+							<div className="col-4">
+								<h5>You joined room {this.state.room}</h5>
+							</div>
+							<div className="col-4">
+								<h5>You are Red</h5>
+							</div>
+						</div>
+					</div>
 					<div className='table'>
-					<span className=''><br></br><h3>Your Opponent's Score: {this.state.blueScore}</h3><br></br></span>
 					<span className="">
 
 						{this.renderRow(0)}
@@ -803,9 +975,13 @@ class Board extends React.Component {
 						<br></br>
 						{Panel}
 						<br></br>
-						{readyButton}
+						<div className="row">
+							<div className="col-2">{readyButton}</div>
+							<div className="col-8"></div>
+							<div className="col-2">{resignButton}</div>
+						</div>
 					</span>
-					<span className=''><h3>Your Score: {this.state.redScore}</h3></span>
+
 					</div>
 					<div className='footer'>Copyright (C) Technothlon 2019-20</div>
 				</div>
@@ -814,25 +990,41 @@ class Board extends React.Component {
 
 	}
 
-	blueReadyButton() {
-		if(this.state.numBlue<40) alert('Place all pieces first.');
-		else {
-			this.socket.emit("blueReady",function(){
-				console.log("Blue is Ready");				
-			});
+	resignClick(){
 
-			this.setState({clickMask:true});
+		if(window.confirm("Are you sure you want to give up?")){
+			this.socket.emit("win", this.state.isPlayerBlue?0:1);
 		}
 	}
 
-	redReadyButton() {
-		if(this.state.numRed<40) alert('Place all pieces first.');
-		else {
-			this.socket.emit("redReady",function(){
-				console.log("Red is ready");				
-			});
+	readyClick(){
 
-			this.setState({clickMask:true});
+		console.log("bluePece " + this.state.numBlue);
+		console.log("redPiece " + this.state.numRed);
+
+		if(!this.state.clickMask){
+			console.log(this.state.numBlue);
+			console.log(this.state.numRed);
+			if(this.state.isPlayerBlue){
+
+				if(this.state.numBlue<40) alert('Place all pieces first.');
+				else {
+					this.socket.emit("ready",function(){
+						console.log("Blue is Ready");
+					});
+
+					this.setState({clickMask:true});
+				}
+			}else{
+				if(this.state.numRed<40) alert('Place all pieces first.');
+				else {
+					this.socket.emit("ready",function(){
+						console.log("Red is ready");
+					});
+
+					this.setState({clickMask:true});
+				}
+			}
 		}
 	}
 }
@@ -866,7 +1058,7 @@ function makepieces() { //pieces[0][index] are red, pieces[1][index] are blue.
 
 	let redPieces = makePieceArray(false);
 	let bluePieces = makePieceArray(true);
-	
+
 	pieces.push(redPieces);
 	pieces.push(bluePieces);
 
@@ -877,34 +1069,34 @@ function makePieceArray(isBlue) {
 	let part = [];
 
 	for(let i = 0;i<6;i++)
-		part.push(new Piece(isBlue,-1,false));
+		part.push(pieceMaker(isBlue,-1,false));
 
-	part.push(new Piece(isBlue,0,false));
-	part.push(new Piece(isBlue,1,true));
+	part.push(pieceMaker(isBlue,0,false));
+	part.push(pieceMaker(isBlue,1,true));
 
 	for(let i=0;i<7;i++)
-		part.push(new Piece(isBlue,2,true));
+		part.push(pieceMaker(isBlue,2,true));
 
 	for(let i=0;i<5;i++)
-		part.push(new Piece(isBlue,3,true));
+		part.push(pieceMaker(isBlue,3,true));
 
 	for(let i=0;i<5;i++)
-		part.push(new Piece(isBlue,4,true));
+		part.push(pieceMaker(isBlue,4,true));
 
 	for(let i=0;i<4;i++)
-		part.push(new Piece(isBlue,5,true));
+		part.push(pieceMaker(isBlue,5,true));
 
 	for(let i=0;i<4;i++)
-		part.push(new Piece(isBlue,6,true));
+		part.push(pieceMaker(isBlue,6,true));
 
 	for(let i=0;i<3;i++)
-		part.push(new Piece(isBlue,7,true));
+		part.push(pieceMaker(isBlue,7,true));
 
 	for(let i=0;i<2;i++)
-		part.push(new Piece(isBlue,8,true));
+		part.push(pieceMaker(isBlue,8,true));
 
-	part.push(new Piece(isBlue,9,true));
-	part.push(new Piece(isBlue,10,true));
+	part.push(pieceMaker(isBlue,9,true));
+	part.push(pieceMaker(isBlue,10,true));
 
 	return part;
 }
@@ -926,33 +1118,95 @@ function isNear (a, b) {
 	return ((Math.abs(a%10 - b%10) <= 1) && (Math.abs(Math.floor(a/10) - Math.floor(b/10)) <= 1));
 }
 
-class Piece {
-	constructor(isBlue,rank,isMovable) {
-		this.isBlue = isBlue;
-		this.pos = null;
-		this.rank = rank;
-		this.isAlive = true;
-		this.isMovable = isMovable;
-	}
+function pieceMaker(isBlue, rank, isMovable) {
+	let piece = {
+		isBlue: isBlue,
+		pos: null,
+		rank: rank,
+		isMovable: isMovable,
+		isAlive: true,
+	};
+
+	return piece;
 }
 
 function Help() {
 	const [show, setShow] = useState(false);
-  
+
 	const handleClose = () => setShow(false);
 	const handleShow = () => setShow(true);
-  
+
 	return (
 	  <span>
 		<Button variant="primary" onClick={handleShow}>
 		  Help
 		</Button>
-  
+
 		<Modal show={show} onHide={handleClose}>
 		  <Modal.Header closeButton>
-			<Modal.Title>Modal heading</Modal.Title>
+			<Modal.Title> Art Of War </Modal.Title>
 		  </Modal.Header>
-		  <Modal.Body>Woohoo, you're reading this text in a modal!</Modal.Body>
+		  <Modal.Body>
+				<h3> Objective </h3>
+				<p>Capture the flag of opposing team</p>
+
+				<h3>Pieces</h3>
+				<p>
+					You have 33 movable pieces.
+					<br></br>
+					Each piece has a rank which is the number on it.
+					<br></br>
+					You have 1 flag and 6 bomb, which are not movable.
+					<br></br>
+					This makes a total of 40 pieces.
+				</p>
+
+				<h3>Board</h3>
+				<p>Board is 12 x 10 rectangular grid. There are two lakes in middle. Your piece cannot move on lake.</p>
+
+				<h3>Gameplay</h3>
+				<uL>
+					<li>Arrange Your Pieces On board by clicking on panel and then clicking board. You can arrange in only first 4 rows. You can interchange pieces on board by clicking them and swapping them.<br></br> Note: you can rearrange the pieces only before clicking ready.</li>
+					<li>The way your opponent arranged his/her pieces is hidden to you..</li>
+					<li>Once you and your opponent are both ready, the game will start. The timer will start running. Both player will be given twenty minutes each.</li>
+					<li>For moving pieces, you can click on it and move to any one of the green highlighted pieces in 4 directions.</li>
+					<li>On clicking your piece, if there is an opponent piece in neighbouring squares, it will be highlighted purple. You can click on purple square to attack on opponent's piece.</li>
+					<li>If you capture opponents flag or your opponent's timer runs out or if opponent resigns, you win.</li>
+				</uL>
+
+				<h3>Movement And Attacking</h3>
+				<p>
+					A piece can move to any of its neighbouring squares in one of the four directions, if they are free. These squares will be highlighted.
+					<br></br>
+					If piece(attacking piece) has opponent's piece(defending piece) in neighbouring square, it can attack it. Piece with higher rank wins and losing piece is removed from the board. Winning piece will placed on defending piece's square.
+					<br></br>
+					In case there is a tie, both pieces will die.
+					<br></br>
+					Spy(rank 1 or S) and Bomb have special privileges.
+					<br></br>
+					<strong>Spy : </strong> it is a special piece. It is of lowest rank in movable pieces. BUT, if it attacks any piece(apart from bomb), it will always win. But if any other piece attack on Spy, Spy will always lose.
+					<br></br>
+					<strong>Bomb : </strong> it is an immovable piece. Its position is fixed from the start of the game. If any piece(including Spy) <stong> (except rank "3") </stong> attacks on Bomb, it will blast in 3 x 3 squares around it. Any enemy piece(s) in the radius will die. The bomb will also die/removed. If Rank 3 attacks Bomb, Bomb will die.
+					<br></br>
+					<strong>Flag : </strong> it is immovable but most important piece. If you lose flag , you lose the match. (HINTS for defending: You can keep your flag at edges or corners and surround it with bombs and maybe a high ranking piece.)
+				</p>
+
+				<h3>Points and Scoring</h3>
+				<ul>
+					<li>For each piece you capture, you will get points equal to its rank. For eg. : if you capture a piece of rank 8, you will get 8 points.</li>
+					<li>In case of tie, you won't get any points.</li>
+					<li>For each bomb you diffuse(attacking a bomb with rank 3), you will get 5 points.</li>
+					<li>If you cature a spy, you will get points equal to rank of piece you captured it with. For eg. : if you capture a spy using rank 6 piece, you will get 6 points.</li>
+					<li>If you win the match, you will get 180 points.</li>
+				</ul>
+
+				<h3>Important :</h3>
+				<p><strong>Never Refresh/reload page or go back a page.</strong></p>
+				<p>Ask one of the event coordinators for any technical queries</p>
+				<p>If your internet cutoff due to some reason, immediately contact one of the coordinators.</p>
+				<p>Use latest version of chrome in Desktop/Laptop. If not possible, use chrome app in desktop mode in mobile phones.</p>
+
+		  </Modal.Body>
 		  <Modal.Footer>
 			<Button variant="secondary" onClick={handleClose}>
 			  Close
@@ -974,10 +1228,10 @@ const popover = (
 	  </Popover.Content>
 	</Popover>
   );
-  
+
   const TechnoLogo = () => (
 	<OverlayTrigger trigger="click" placement="right" overlay={popover}>
-		<img src={logo} alt='technologo'></img>
+		<a href='#'><img src={logo} alt='technologo'></img></a>
 	  {/* <Button variant="success">Click</Button> */}
 	</OverlayTrigger>
   );
